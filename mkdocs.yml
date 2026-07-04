@@ -1,0 +1,55 @@
+site_name: AV Tools
+site_description: Deploying and operating AV Tools (sharded SNMP/ping sweep) on CERN Kubernetes
+site_url: https://avtools-docs.docs.cern.ch/
+# Modelled on kubernetes.docs.cern.ch (MkDocs Material). MkDocs remains the CERN
+# default SSG (see the Documentation How-to Guide, "Using MkDocs", Apr 2026 note).
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.sections
+    - navigation.instant
+    - navigation.top
+    - navigation.tracking
+    - content.code.copy
+    - toc.follow
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Architecture: architecture.md
+  - Deployment:
+      - OpenShift (PaaS): deployment/openshift.md
+      - Kubernetes on OpenStack (Magnum): deployment/magnum.md
+  - Secrets & Configuration: secrets.md
+  - Logging & Monitoring: logging-monitoring.md
+  - Operations Runbook: operations.md
+  - FAQ: faq.md

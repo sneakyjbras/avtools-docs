@@ -1,0 +1,35 @@
+# CERN GitLab Pages build for the AV Tools docs site.
+#
+# Flow (see the CERN "Documentation How-to Guide"):
+#   1. Push this repo to a new GitLab project (e.g. itdcim/avtools-docs).
+#   2. Register a site in Web Services -> avtools-docs.docs.cern.ch.
+#   3. This `pages` job builds the MkDocs Material site into `public/`.
+#
+# Uses the CERN registry proxy cache for the base image so pulls stay inside
+# the CERN network (see kubernetes.docs.cern.ch -> Registry -> Quickstart).
+image: registry.cern.ch/docker.io/library/python:3.12-slim
+
+pages:
+  stage: deploy
+  script:
+    - pip install --no-cache-dir -r requirements.txt
+    - mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Build (but don't publish) on merge requests, so broken docs fail the MR.
+test:docs:
+  stage: test
+  image: registry.cern.ch/docker.io/library/python:3.12-slim
+  script:
+    - pip install --no-cache-dir -r requirements.txt
+    - mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+    expire_in: 1 day
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

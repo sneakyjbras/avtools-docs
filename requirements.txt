@@ -1,0 +1,2 @@
+# Pinned so CI builds are reproducible. MkDocs Material is what kubernetes.docs.cern.ch uses.
+mkdocs-material==9.5.44
