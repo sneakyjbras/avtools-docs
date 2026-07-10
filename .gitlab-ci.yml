@@ -2,7 +2,7 @@
 #
 # Flow (see the CERN "Documentation How-to Guide"):
 #   1. Push this repo to a new GitLab project (e.g. itdcim/avtools-docs).
-#   2. Register a site in Web Services -> avtools-docs.docs.cern.ch.
+#   2. Register a site in Web Services -> avtools.docs.cern.ch.
 #   3. This `pages` job builds the MkDocs Material site into `public/`.
 #
 # Uses the CERN registry proxy cache for the base image so pulls stay inside

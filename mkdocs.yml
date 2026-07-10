@@ -1,6 +1,6 @@
 site_name: AV Tools
 site_description: Deploying and operating AV Tools (sharded SNMP/ping sweep) on CERN Kubernetes
-site_url: https://avtools-docs.docs.cern.ch/
+site_url: https://avtools.docs.cern.ch/
 # Modelled on kubernetes.docs.cern.ch (MkDocs Material). MkDocs remains the CERN
 # default SSG (see the Documentation How-to Guide, "Using MkDocs", Apr 2026 note).
 
