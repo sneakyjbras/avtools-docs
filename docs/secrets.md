@@ -27,17 +27,17 @@ The SNMP sweep consumes exactly **two** secrets — nothing more:
 
 ## Non-secret config
 
-Lives in `configmap.yaml` (`avtools-config`): `MONIT_TENANT`, `MONIT_OTLP_ENDPOINT`,
+Lives in the chart ConfigMap (`avtools-config`) in `av-tools-infra`: `MONIT_TENANT`, `MONIT_OTLP_ENDPOINT`,
 `AVTOOLS_ENVIRONMENT` (start on `qa`), `AVTOOLS_HOSTGROUP=itdcim/avtools`, labels.
 
 ## Sync the secret
 
-`deploy/openshift/sync-secret.sh` reads both values from tbag and upserts the
+In the `av-tools-infra` repo, `scripts/sync-secret.sh` reads both values from tbag and upserts the
 `avtools-secrets` Secret idempotently (values never hit stdout):
 
 ```bash
-./deploy/openshift/sync-secret.sh                     # qa, hostgroup itdcim/avtools
-AVTOOLS_ENVIRONMENT=prod ./deploy/openshift/sync-secret.sh
+./scripts/sync-secret.sh                     # qa, hostgroup itdcim/avtools
+AVTOOLS_ENVIRONMENT=prod ./scripts/sync-secret.sh
 ```
 
 Manual fallback (no tbag access from where you deploy): copy `secret.example.yaml`

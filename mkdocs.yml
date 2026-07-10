@@ -46,9 +46,7 @@ nav:
   - Home: index.md
   - Getting Started: getting-started.md
   - Architecture: architecture.md
-  - Deployment:
-      - OpenShift (PaaS): deployment/openshift.md
-      - Kubernetes on OpenStack (Magnum): deployment/magnum.md
+  - Deployment: deployment/magnum.md
   - Secrets & Configuration: secrets.md
   - Logging & Monitoring: logging-monitoring.md
   - Operations Runbook: operations.md

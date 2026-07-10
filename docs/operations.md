@@ -1,15 +1,16 @@
 # Operations Runbook
 
-`oc` on OpenShift, `kubectl` on Magnum — commands are otherwise identical.
+All commands use `kubectl` against the Magnum cluster (`openstack coe cluster config
+avtools-k8s`).
 
 ## Trigger a sweep now
 
 Don't wait 5 minutes — fire a manual Job from the CronJob:
 
 ```bash
-oc create job --from=cronjob/avtools-snmp avtools-snmp-manual
-oc get pods -w                        # expect 8 pods, indices 0..7
-oc logs -l app=avtools --tail=50      # snmp_shard_applied + cycle_summary
+kubectl create job --from=cronjob/avtools-snmp avtools-snmp-manual
+kubectl get pods -w                        # expect 8 pods, indices 0..7
+kubectl logs -l app=avtools --tail=50      # snmp_shard_applied + cycle_summary
 ```
 
 Each pod's log shows its own `shard_index` and a `devices_in_shard` roughly equal to
@@ -20,13 +21,13 @@ Each pod's log shows its own `shard_index` and a `devices_in_shard` roughly equa
 Change **both** values and re-apply — they must match, or some devices are never
 polled:
 
-- `completions` (and `parallelism`) in `cronjob.yaml`
-- the `SHARD_TOTAL` env in `cronjob.yaml`
+- `completions` (and `parallelism`) via the chart values (`jobs.<name>.shards`)
+- the `SHARD_TOTAL` env via the chart values (`jobs.<name>.shards`)
 
 Compute N from `ceil(device_count / target_devices_per_shard)`.
 
 ```bash
-oc apply -f deploy/openshift/cronjob.yaml
+helm template avtools chart -f chart/values.yaml -f chart/values-qa.yaml | kubectl apply -n avtools-qa -f -
 ```
 
 ## Rotate a secret
@@ -35,16 +36,16 @@ Update the value in tbag, then re-sync — no manifest change:
 
 ```bash
 # update in tbag (hostgroup itdcim/avtools), then:
-./deploy/openshift/sync-secret.sh
+./scripts/sync-secret.sh
 ```
 
 ## Known gotchas
 
 !!! warning "ICMP ping needs `CAP_NET_RAW`"
-    Under OpenShift's restricted SCC, **SNMP works but ping may fail**. Check
-    ping-status metrics after the first run. Fixes: unprivileged ICMP via
-    `net.ipv4.ping_group_range`, an SCC granting `NET_RAW` (PaaS admin approval), or
-    move to [Magnum](deployment/magnum.md) where you add `NET_RAW` directly.
+    SNMP works without extra privileges, but the ICMP ping probes need `NET_RAW`. On
+    Magnum you are cluster-admin, so add it to the CronJob container's
+    `securityContext` (`capabilities.add: ["NET_RAW"]`). Check ping-status metrics
+    after the first run to confirm it took.
 
 !!! warning "completions must equal SHARD_TOTAL"
     A mismatch means some `crc32` buckets are never polled. The app refuses to start

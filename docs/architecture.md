@@ -42,28 +42,30 @@ Kubernetes deployment during migration, then is retired at cutover
 - **tbag/Teigi stays the single source of truth** for the shared secrets, feeding
   both worlds. See [Secrets](secrets.md).
 
-## Choosing a platform
+## Why Magnum
 
-The workload is a 5-minute CronJob, not a long-running service — so the platform
-choice is about **operational cost vs. control**, and one technical driver: ICMP ping.
+The workload is a 5-minute CronJob, not a long-running service. It runs on a
+**self-managed Kubernetes cluster on OpenStack (Magnum)**, and the deciding factor
+is one technical driver: **ICMP ping**.
 
-| | OpenShift PaaS | Magnum (self-managed k8s) |
-|---|---|---|
-| Control plane | CERN operates it | Magnum provisions; **you own upgrades/health** |
-| Isolation | Shared, multi-tenant namespace | Your own cluster |
-| ICMP ping (`NET_RAW`) | Restricted SCC drops caps — must request an SCC | Cluster-admin: add `NET_RAW` freely |
-| Quota | None of your OpenStack quota | Control plane + workers consume it |
-| Image build | In-cluster `oc new-build` / ImageStream | Build in CI → push to `registry.cern.ch` |
+AV Tools does SNMP **and** ICMP ping. SNMP works on any Kubernetes; ping needs the
+`NET_RAW` capability. On a managed PaaS the restricted security context strips that
+capability, so ping fails unless an admin grants an exception. On **Magnum you are
+cluster-admin**, so `NET_RAW` is a one-line `securityContext` addition and the
+problem disappears.
 
-**Decision rule.** AV Tools does SNMP **and** ICMP ping. SNMP works everywhere;
-ping needs `NET_RAW`, which OpenShift's restricted SCC strips.
+Magnum is **semi-managed**: you provision and manage the cluster lifecycle with
+`openstack coe cluster …`, so it is not "run a control plane by hand" — but you do
+own upgrades, node health, and the quota footprint (control plane + workers consume
+your OpenStack project's cores/instances).
 
-- If ping works unprivileged, **or** PaaS admins grant a `NET_RAW` SCC → **stay on
-  OpenShift PaaS** (zero cluster maintenance).
-- If neither → **Magnum**, where you are cluster-admin and `NET_RAW` is a one-line
-  `securityContext` addition. Magnum is semi-managed (lifecycle via
-  `openstack coe cluster …`), so this is not "run a control plane by hand" — but you
-  do own upgrades, node health, and the quota footprint.
+| | Magnum (self-managed k8s on OpenStack) |
+|---|---|
+| Control plane | Magnum provisions; **you own upgrades/health** |
+| Isolation | Your own cluster |
+| ICMP ping (`NET_RAW`) | Cluster-admin: add `NET_RAW` freely |
+| Quota | Control plane + workers consume your OpenStack quota |
+| Image build | Build in CI → push to `registry.cern.ch` |
 
-Almost everything else (the `CronJob`, `ConfigMap`, `Secret`, and the tbag sync)
-is plain Kubernetes and ports between the two paths unchanged.
+Everything else (the `CronJob`, `ConfigMap`, `Secret`, and the tbag sync) is plain
+Kubernetes. See [Deployment](deployment/magnum.md).

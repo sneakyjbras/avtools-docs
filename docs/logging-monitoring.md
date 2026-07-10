@@ -8,11 +8,9 @@ Bit on the VM.
 
 - **Containers** write structured logs to **stdout/stderr**. That's it — the pod
   doesn't know about OpenSearch.
-- A cluster collector picks them up:
-    - **OpenShift** — very likely a built-in cluster-logging path to central
-      OpenSearch/MONIT; confirm what your instance offers before deploying your own.
-    - **Magnum** — run **Fluent Bit as a DaemonSet** (one per node), which scrapes
-      every pod's stdout, enriches with Kubernetes metadata, and ships to OpenSearch.
+- A cluster collector picks them up: on Magnum, run **Fluent Bit as a DaemonSet**
+  (one per node), which scrapes every pod's stdout, enriches with Kubernetes
+  metadata, and ships to OpenSearch.
 - **Monolith** (during overlap) keeps its Puppet `fluentbit::pipeline` → OpenSearch,
   untouched until decommission.
 
