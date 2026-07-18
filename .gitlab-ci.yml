@@ -36,8 +36,10 @@ include:
     file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
 
 # Build (but don't publish) on merge requests, so broken docs fail the MR.
+# NB: the stage must be one the CERN mkdocs-ci include defines
+# (.pre, scan-policies, validation, pages, .post) — `test` does not exist there.
 test:docs:
-  stage: test
+  stage: validation
   image: registry.cern.ch/docker.io/library/python:3.12-slim
   script:
     - pip install --no-cache-dir -r requirements.txt
