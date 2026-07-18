@@ -3,43 +3,26 @@
 # Flow (see the CERN "Documentation How-to Guide"):
 #   1. Push this repo to a new GitLab project (e.g. itdcim/avtools-docs).
 #   2. Register a site in Web Services -> avtools.docs.cern.ch.
-#   3. CERN's official mkdocs-ci template (included below) builds the
-#      MkDocs Material site into `public/` and publishes it to the storage
-#      that Web Services serves from.
-#
-# *** GOTCHA THAT BIT US ONCE, DON'T REPEAT IT ***
-# The Web Services site "avtools" (-> avtools.docs.cern.ch) IS registered
-# (created 2026-07-10, owner jsapinat, admin group itdcim-apps). The site
-# was empty anyway because this repo published with a hand-rolled `pages:`
-# job that only produced a generic `public/` artifact. Per the CERN "Using
-# MkDocs" how-to guide, docs.cern.ch sites are served from a "safe storage"
-# that GitLab pushes to ONLY when you include CERN's mkdocs-ci template - a
-# plain `mkdocs build` + `artifacts:paths` never pushes there, so the store
-# behind the (correctly registered) hostname stayed empty. `mkdocs build
-# --strict` still passes, so CI is green and can't catch this.
-# Two things must both be true for the site to show content:
-#   1. This pipeline publishes via the CERN mkdocs-ci include (fixed below).
-#   2. In Web Services, "Set up Pages" links THIS site to THIS GitLab
-#      project (itdcim/avtools-docs) - verify in the portal; not in-repo.
+#   3. This `pages` job builds the MkDocs Material site into `public/`.
 #
 # Uses the CERN registry proxy cache for the base image so pulls stay inside
 # the CERN network (see kubernetes.docs.cern.ch -> Registry -> Quickstart).
 image: registry.cern.ch/docker.io/library/python:3.12-slim
 
-# Publish via CERN's official MkDocs GitLab Pages template rather than a
-# hand-rolled `pages:` job. Per the CERN "Using MkDocs" how-to guide, this
-# is what builds the site AND pushes it to the storage that CERN Web
-# Services sites actually serve from - a plain `mkdocs build` + generic
-# `artifacts:paths` job is not documented/guaranteed to feed that path.
-include:
-  - project: 'authoring/documentation/mkdocs-ci'
-    file: 'mkdocs-gitlab-pages.gitlab-ci.yml'
+pages:
+  stage: deploy
+  script:
+    - pip install --no-cache-dir -r requirements.txt
+    - mkdocs build --strict --site-dir public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 # Build (but don't publish) on merge requests, so broken docs fail the MR.
-# NB: the stage must be one the CERN mkdocs-ci include defines
-# (.pre, scan-policies, validation, pages, .post) — `test` does not exist there.
 test:docs:
-  stage: validation
+  stage: test
   image: registry.cern.ch/docker.io/library/python:3.12-slim
   script:
     - pip install --no-cache-dir -r requirements.txt
