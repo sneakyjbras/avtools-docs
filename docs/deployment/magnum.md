@@ -4,15 +4,18 @@ AV Tools runs on a self-managed **Magnum** cluster (so it can add `NET_RAW` for 
 ping — see [Architecture → Why Magnum](../architecture.md#why-magnum)), deployed by
 **GitOps (Terraform + ArgoCD + Helm)**.
 
-## Two repositories
+## Four repositories
 
 | Repo | Owns | Produces |
 |---|---|---|
-| [`av-tools`](https://gitlab.cern.ch/itdcim/av-tools) | app code, `Dockerfile`, Grafana dashboards, Sentry SDK | the image `registry.cern.ch/itdcim/avtools:{qa,prod}` |
+| [`av-tools`](https://gitlab.cern.ch/itdcim/av-tools) | app code (SNMP/EAM/LanDB/Postgres) | RPM (Puppet) + wheel (ITDCIM PyPI) |
+| [`av-tools-image`](https://gitlab.cern.ch/itdcim/av-tools-image) | `Dockerfile` — no app code, `pip install`s the published wheel | the image `registry.cern.ch/itdcim/avtools:{qa,prod}` |
 | [`av-tools-infra`](https://gitlab.cern.ch/itdcim/av-tools-infra) | `terraform/`, Helm `chart/`, `argocd/`, `scripts/sync-secret.sh` | the running deployment |
+| [`av-tools-grafana`](https://gitlab.cern.ch/itdcim/av-tools-grafana) | dashboards + alert rulegroups | Grafana panels/alerts |
 
 The contract between them is the **image tag**. Everything below runs from
-`av-tools-infra` unless noted.
+`av-tools-infra` unless noted. See [Repositories](../repos.md) for the full
+publish chain (RPM vs wheel, QA vs PROD PyPI) and why each split exists.
 
 !!! info "Reference"
     Grounded in the CERN Kubernetes docs (`kubernetes.docs.cern.ch`). Template/flavor
@@ -20,8 +23,10 @@ The contract between them is the **image tag**. Everything below runs from
 
 ## 1. Provision the cluster (Terraform)
 
-From `av-tools-infra/terraform/`, with an OpenStack application credential sourced
-(see `terraform/README.md`):
+From `av-tools-infra/terraform/`, with a **Kerberos**-derived OpenStack token
+sourced (`kinit` + `scripts/os-auth.sh` — see `terraform/README.md`; an
+application credential works for `plan` but **not** for cluster creation, see
+below):
 
 ```bash
 cd terraform
@@ -38,11 +43,38 @@ $(openstack coe cluster config avtools-k8s)
 kubectl get nodes
 ```
 
-## 2. Build & publish the image (av-tools)
+!!! danger "Authenticate with Kerberos, not an application credential"
+    Magnum creates a Keystone **trust** so the cluster can call OpenStack back
+    (load balancers, volumes, the autoscaler). Keystone refuses trust creation
+    from an application credential — **even `unrestricted = True`** — so
+    `terraform apply` for cluster *creation* must run under a personal
+    **Kerberos** identity (`kinit <you>@CERN.CH`), not an app-cred `clouds.yaml`.
+    Symptom if you get this wrong: a clean plan, then `CREATE_FAILED: Failed to
+    create trustee or trust for Cluster` about 30 seconds into `apply`.
 
-Magnum has no in-cluster build. The **`av-tools`** CI builds `Dockerfile` with kaniko
-and pushes `registry.cern.ch/itdcim/avtools:qa` (on `qa`/`master`) and `:prod` (on
-tags). For a private Harbor repo, create a robot account and a pull secret:
+!!! warning "Master flavor must be `m2.large`, not the template default `m2.medium`"
+    CERN installs roughly 15 heavy addons on the master at boot (Falco,
+    Prometheus, Velero, cert-manager, Cilium, four CSI drivers, the autoscaler,
+    node-feature-discovery, fluentd…) via one Helm job. `m2.medium` (3.75 GB)
+    starves under that weight — the control plane runs low on headroom, addon
+    probes time out, pods liveness-restart in a loop, and the Helm install never
+    converges: `CREATE_FAILED`, with every VM deceptively `ACTIVE` in Horizon.
+    `m2.large` (7.5 GB) has the headroom and builds cleanly.
+
+!!! note "Cluster templates get retired"
+    Run `openstack coe cluster template list` before every apply — a pinned
+    template name can vanish between builds. Avoid `-argo` variants (they set
+    `cern_chart_enabled: false` and expect CERN's newer addon delivery).
+
+## 2. Build & publish the image (av-tools-image)
+
+Magnum has no in-cluster build, and **`av-tools-image`** contains **no
+application code**: its CI `pip install`s the `avtools` wheel that `av-tools`
+already published to the ITDCIM PyPI index, and wraps it in a container with
+kaniko — QA builds pull from QA PyPI, PROD builds pull from PROD PyPI (see
+[Repositories](../repos.md)). It pushes `registry.cern.ch/itdcim/avtools:qa` (on
+`qa`/`master`) and `:prod` (on tags). For a private Harbor repo, create a robot
+account and a pull secret:
 
 ```bash
 kubectl -n avtools-qa create secret docker-registry harbor-avtools \
@@ -90,6 +122,12 @@ kubectl -n avtools-qa create job --from=cronjob/avtools-snmp-timeseries manual
 kubectl -n avtools-qa get pods -w                                  # 8 pods, indices 0..7
 kubectl -n avtools-qa logs -l app.kubernetes.io/component=snmp-timeseries --tail=50
 ```
+
+!!! note "`run-eam` / `run-landb` are single-pod"
+    Only `snmp-timeseries` fans out to 8 indexed pods. Triggering
+    `avtools-run-eam` or `avtools-run-landb` manually yields exactly **one**
+    pod — that's by design, not a misconfiguration. See
+    [Architecture → Not everything shards](../architecture.md#not-everything-shards).
 
 ## Lifecycle
 

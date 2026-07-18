@@ -6,6 +6,10 @@
   and to an **OpenStack project** with container-cluster (Magnum) quota.
 - [LXPLUS](https://abpcomputing.web.cern.ch/guides/lxplus/) access, with your
   OpenStack project sourced.
+- A **Kerberos ticket** (`kinit <you>@CERN.CH`) for cluster **creation** —
+  Magnum needs a Keystone trust that an OpenStack application credential cannot
+  create. Day-to-day `kubectl` against an already-running cluster only needs a
+  kubeconfig, not a fresh ticket.
 - `kubectl` and the `openstack` CLI.
 - `tbag` (Teigi CLI) to read the shared secrets — see [Secrets](secrets.md).
 
@@ -27,7 +31,14 @@ self-managed Magnum cluster you are cluster-admin, so `NET_RAW` is a one-line
 
 ```bash
 # from lxplus, with your OpenStack project sourced
+kinit <you>@CERN.CH                              # cluster creation needs Kerberos, not an app credential
+openstack coe cluster template list              # templates get retired -- confirm the name below still exists
 openstack coe cluster create avtools-k8s --keypair <mykey> \
   --cluster-template kubernetes-1.33.3-1 --node-count 3
 # then follow Deployment -> Kubernetes on OpenStack (Magnum)
 ```
+
+!!! tip "Template name above is illustrative, not a pin"
+    Cluster templates rotate; `kubernetes-1.33.3-1` may already be gone by the
+    time you read this. Always take the name from
+    `openstack coe cluster template list`, not from a doc or an old `tfvars`.

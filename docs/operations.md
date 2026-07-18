@@ -30,6 +30,13 @@ Compute N from `ceil(device_count / target_devices_per_shard)`.
 helm template avtools chart -f chart/values.yaml -f chart/values-qa.yaml | kubectl apply -n avtools-qa -f -
 ```
 
+!!! warning "Only scale `snmp-timeseries`"
+    `run-eam` and `run-landb` are single-node reconciliation syncs — their
+    `shards` must stay `1`. Raising it doesn't parallelize anything; it runs N
+    redundant full syncs that fight over the same Postgres rows (write
+    contention, wasted DB load, lost updates). See
+    [Architecture → Not everything shards](architecture.md#not-everything-shards).
+
 ## Rotate a secret
 
 Update the value in tbag, then re-sync — no manifest change:

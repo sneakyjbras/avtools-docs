@@ -31,6 +31,27 @@ CronJob (*/5 * * * *)
     shards elsewhere. "8 nodes × 8 threads" means 8 *shard-pods* the scheduler places
     across the cluster — not 8 machines you manage.
 
+## Not everything shards
+
+Only **`snmp-timeseries`** shards. AV Tools also runs two bulk
+**reconciliation** CronJobs — `run-eam` and `run-landb` — that stay single-node
+(`SHARD_TOTAL=1`) on purpose:
+
+- `snmp-timeseries` does **per-device** work (poll one device, write that
+  device's rows), so splitting the device list across pods is safe: disjoint
+  devices mean disjoint reads and disjoint writes.
+- `run-eam` and `run-landb` fetch the **entire** EAM/LanDB inventory, diff it
+  against Postgres, and upsert. That diff needs the **global** inventory view to
+  detect orphaned rows — a shard that only sees its own slice can't do that
+  safely. Sharding them wouldn't parallelize the work; it would just run N
+  redundant full syncs that fight over the same rows (wasted DB load, write
+  contention, lost updates).
+
+`SHARD_TOTAL=1` isn't a special case in the code — it's the same `crc32 %
+SHARD_TOTAL` formula with one shard, which is also exactly how the legacy
+monolith runs: it never sets `SHARD_TOTAL`, so it implicitly gets the whole
+fleet through the same code path.
+
 ## Migration shape
 
 The legacy **monolith VM** (Puppet-managed, `itdcim/avtools`) runs **alongside** the
@@ -41,6 +62,10 @@ Kubernetes deployment during migration, then is retired at cutover
   they can be compared and the monolith stream dropped cleanly at the end.
 - **tbag/Teigi stays the single source of truth** for the shared secrets, feeding
   both worlds. See [Secrets](secrets.md).
+- **Release channels stay separate too**: Puppet installs `avtools=latest` from
+  PROD PyPI only, and the sharding-capable builds are published to QA PyPI only —
+  so the monolith can never accidentally pick up a k8s-era build. See
+  [Repositories](repos.md).
 
 ## Why Magnum
 
