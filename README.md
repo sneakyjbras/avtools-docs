@@ -30,6 +30,7 @@ docs/
   index.md
   getting-started.md
   architecture.md
+  repos.md
   deployment/openshift.md
   deployment/magnum.md
   secrets.md
