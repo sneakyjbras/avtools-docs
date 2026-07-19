@@ -47,6 +47,8 @@ nav:
   - Getting Started: getting-started.md
   - Architecture: architecture.md
   - Repositories: repos.md
+  - The Monolith & Puppet: monolith-puppet.md
+  - Release Channels & Compatibility: release-channels.md
   - Deployment: deployment/magnum.md
   - Secrets & Configuration: secrets.md
   - Logging & Monitoring: logging-monitoring.md

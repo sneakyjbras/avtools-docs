@@ -36,7 +36,7 @@ No. Metrics are **pushed** via OTLP to MONIT, not scraped. See
 ### How do I build the image for Magnum?
 
 Magnum has no in-cluster build — build in GitLab CI and push to `registry.cern.ch`
-(Harbor), then point the chart image at `registry.cern.ch/itdcim/avtools:{qa,prod}` (built by the `av-tools` CI). See
+(Harbor), then point the chart image at `registry.cern.ch/avtools/avtools:{qa,prod}` (built by the `av-tools` CI). See
 [Deployment](deployment/magnum.md).
 
 ### This site is for AV Tools — can we reuse it for timeseries-DIP?
@@ -45,19 +45,18 @@ Yes. This is a standard CERN MkDocs Material site (one repo → one
 `*.docs.cern.ch`). Copy the structure into a `timeseries-dip-docs` repo, swap the
 content, and register a new Web Services site.
 
-### Why four repos — `av-tools`, `av-tools-image`, `av-tools-infra`, `av-tools-grafana`?
+### Why three repos — `av-tools`, `av-tools-infra`, `av-tools-grafana`?
 
 Each concern has a different lifecycle and shouldn't share a pipeline.
-**`av-tools`** owns the application and publishes it two ways — an RPM for
-Puppet, a wheel for the ITDCIM PyPI index. **`av-tools-image`** owns the
-`Dockerfile` and contains **no application code**: it `pip install`s the
-published wheel into a container, so a container-build tweak never needs an app
-release. **`av-tools-infra`** owns the Terraform, Helm chart, and ArgoCD
-manifests that deploy it. **`av-tools-grafana`** owns dashboards and alerts,
-split out so a panel edit ships in seconds instead of riding the app's full
-koji/test/e2e pipeline. The contract between all of them is the **image tag**
-(`registry.cern.ch/itdcim/avtools:{qa,prod}`) and the **wheel** published to
-ITDCIM PyPI. See [Repositories](repos.md).
+**`av-tools`** owns the application and ships it three ways — an RPM for Puppet, a
+wheel for the ITDCIM PyPI index, and a container image built **from source** by
+its own CI. **`av-tools-infra`** owns the Terraform, Helm chart, and ArgoCD
+manifests that deploy it. **`av-tools-grafana`** owns dashboards and alerts, split
+out so a panel edit ships in seconds instead of riding the app's full
+koji/test/e2e pipeline. The contract between them is the **image tag**
+(`registry.cern.ch/avtools/avtools:{qa,prod}`) and the **wheel** published to
+ITDCIM PyPI. (An earlier `av-tools-image` repo was tried and removed — the image
+is built inside `av-tools` now; see [Repositories](repos.md).)
 
 ### Why aren't `run-eam` and `run-landb` sharded like the SNMP sweep?
 

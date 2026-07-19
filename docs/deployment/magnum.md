@@ -8,8 +8,7 @@ ping — see [Architecture → Why Magnum](../architecture.md#why-magnum)), depl
 
 | Repo | Owns | Produces |
 |---|---|---|
-| [`av-tools`](https://gitlab.cern.ch/itdcim/av-tools) | app code (SNMP/EAM/LanDB/Postgres) | RPM (Puppet) + wheel (ITDCIM PyPI) |
-| [`av-tools-image`](https://gitlab.cern.ch/itdcim/av-tools-image) | `Dockerfile` — no app code, `pip install`s the published wheel | the image `registry.cern.ch/itdcim/avtools:{qa,prod}` |
+| [`av-tools`](https://gitlab.cern.ch/itdcim/av-tools) | app code (SNMP/EAM/LanDB/Postgres) **+ the container build** | RPM (Puppet), wheel (ITDCIM PyPI), image `registry.cern.ch/avtools/avtools:{qa,prod}` |
 | [`av-tools-infra`](https://gitlab.cern.ch/itdcim/av-tools-infra) | `terraform/`, Helm `chart/`, `argocd/`, `scripts/sync-secret.sh` | the running deployment |
 | [`av-tools-grafana`](https://gitlab.cern.ch/itdcim/av-tools-grafana) | dashboards + alert rulegroups | Grafana panels/alerts |
 
@@ -66,15 +65,15 @@ kubectl get nodes
     template name can vanish between builds. Avoid `-argo` variants (they set
     `cern_chart_enabled: false` and expect CERN's newer addon delivery).
 
-## 2. Build & publish the image (av-tools-image)
+## 2. Build & publish the image (in `av-tools`)
 
-Magnum has no in-cluster build, and **`av-tools-image`** contains **no
-application code**: its CI `pip install`s the `avtools` wheel that `av-tools`
-already published to the ITDCIM PyPI index, and wraps it in a container with
-kaniko — QA builds pull from QA PyPI, PROD builds pull from PROD PyPI (see
-[Repositories](../repos.md)). It pushes `registry.cern.ch/itdcim/avtools:qa` (on
-`qa`/`master`) and `:prod` (on tags). For a private Harbor repo, create a robot
-account and a pull secret:
+Magnum has no in-cluster build. The image is built **from source** by `av-tools`'s
+own CI: a kaniko job (`docker_build_qa`/`docker_build_prod`) runs `poetry build`
+and wraps the result in a container (see [Repositories](../repos.md)). It pushes
+`registry.cern.ch/avtools/avtools:qa` (on `qa`/`master`/the k8s image branch) and
+`:prod` (on tags). Auth uses a Harbor robot account (`robot-avtools+avtools-ci`;
+its token is the `REGISTRY_PASSWORD` CI variable). For the cluster to *pull* the
+private image, create a pull secret:
 
 ```bash
 kubectl -n avtools-qa create secret docker-registry harbor-avtools \

@@ -7,25 +7,26 @@ container image.
 
 | Repo | Owns | Produces |
 |---|---|---|
-| [`av-tools`](https://gitlab.cern.ch/itdcim/av-tools) | the application (SNMP/EAM/LanDB/Postgres) | an **RPM** (Puppet VMs) and a **wheel** (ITDCIM PyPI) — same code, two channels |
-| [`av-tools-image`](https://gitlab.cern.ch/itdcim/av-tools-image) | the container build — **no application code** | `registry.cern.ch/itdcim/avtools:{qa,prod}` |
+| [`av-tools`](https://gitlab.cern.ch/itdcim/av-tools) | the application (SNMP/EAM/LanDB/Postgres) **and its own container build** | an **RPM** (Puppet VMs), a **wheel** (ITDCIM PyPI), and the **image** `registry.cern.ch/avtools/avtools:{qa,prod}` — one codebase, three channels |
 | [`av-tools-infra`](https://gitlab.cern.ch/itdcim/av-tools-infra) | Terraform (Magnum cluster), Helm chart, ArgoCD | the running deployment |
 | [`av-tools-grafana`](https://gitlab.cern.ch/itdcim/av-tools-grafana) | dashboards + alert rulegroups | Grafana panels/alerts |
 
-## One wheel, two homes
+## One codebase, three outputs
 
-`av-tools` publishes the **same package** two ways:
+`av-tools` ships the **same code** three ways:
 
 - an **RPM**, installed by Puppet onto the `itdcim/avtools` monolith VMs. QA and
   PROD monoliths both run today — the QA box, **`avtools-faol`**, is the staging
   environment.
-- a **wheel**, published to the ITDCIM PyPI index, which `av-tools-image`
-  `pip install`s to build the container. No forked or duplicated app code — the
-  container runs the exact package Puppet would install.
+- a **wheel**, published to the ITDCIM PyPI index (how the monolith installs the package).
+- a **container image**, built **from source** in `av-tools`'s own CI (kaniko) and
+  pushed to `registry.cern.ch/avtools/avtools:{qa,prod}`. The Kubernetes Helm chart
+  pulls this image.
 
 ```
-av-tools ──wheel──> ITDCIM PyPI ──installed by──> av-tools-image ──> registry.cern.ch/itdcim/avtools:{qa,prod}
-        └───RPM───> Puppet ──installed on──> itdcim/avtools monolith VMs (QA: avtools-faol, PROD)
+                        ┌── RPM ──────────────────> Puppet ──> itdcim/avtools monolith VMs (QA: avtools-faol, PROD)
+av-tools (one codebase) ┼── wheel ─────────────────> ITDCIM PyPI
+                        └── image (kaniko, source) ─> registry.cern.ch/avtools/avtools:{qa,prod} ─> K8s Helm chart
 ```
 
 ## Channel isolation keeps the monolith safe
@@ -46,13 +47,17 @@ sharding-capable builds (the ones that understand `SHARD_TOTAL` /
     monolith on their own. Either alone is enough; together, the migration has no
     single point of failure for "did this touch QA/PROD".
 
-## Why split `av-tools-image` out
+## Why the image is built in `av-tools`, not a separate repo
 
-Containerizing needed **zero changes to `av-tools`**: the image just installs the
-already-published wheel. Keeping the `Dockerfile` in its own repo means a build
-tweak (base image, layer caching) doesn't need an `av-tools` release, and an
-`av-tools` release doesn't need a new image build to reach QA — ArgoCD just
-re-pulls `:qa` once `av-tools-image`'s CI republishes it. See
+The container image is built **from source** inside `av-tools`'s own CI — there is
+no separate image repo. An earlier `av-tools-image` repo (which `pip install`ed
+the published wheel) was tried and **removed**: it added a publish-first
+dependency (wheel → PyPI → pinned version) for no real gain, because the image and
+Puppet's wheel are **independent artifact streams**. Building from source means
+the image carries exactly the branch's code — including sharding — with no
+wheel-publish step, and Puppet is unaffected (it installs the wheel from PyPI,
+never the image). The image `docker_build` job is decoupled from the heavy app
+pipeline with `needs: []`, so it doesn't wait on koji/test/e2e. See
 [Deployment → Build & publish the image](deployment/magnum.md).
 
 ## Why split `av-tools-grafana` out
