@@ -86,30 +86,65 @@ The chart references it via `imagePullSecrets`.
 
 ## 3. Deploy via ArgoCD (GitOps)
 
-Install ArgoCD once, register `av-tools-infra`, then apply the root app-of-apps
-(details in `av-tools-infra/argocd/README.md`):
+Install ArgoCD once, give it a read token for the (private) repo, then apply the
+root app-of-apps.
 
 ```bash
+# 3a. Install ArgoCD. Use --server-side: the ApplicationSet CRD exceeds the
+#     262144-byte client-side apply annotation limit and fails otherwise.
+kubectl create namespace argocd
+kubectl apply -n argocd --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+
+# 3b. av-tools-infra is PRIVATE. Register a read token (GitLab Deploy Token,
+#     scope read_repository) so ArgoCD can pull the chart — else the app shows
+#     "authentication required: HTTP Basic: Access denied".
+kubectl apply -f - <<'YAML'
+apiVersion: v1
+kind: Secret
+metadata:
+  name: repo-av-tools-infra
+  namespace: argocd
+  labels: { argocd.argoproj.io/secret-type: repository }
+stringData:
+  type: git
+  url: https://gitlab.cern.ch/itdcim/av-tools-infra.git
+  username: <deploy-token-username>
+  password: <deploy-token>
+YAML
+
+# 3c. Apply the root app — it reconciles the AppProject, the ApplicationSet
+#     (avtools-qa tracks master, avtools-prod tracks prod), and kube-prometheus-stack.
 kubectl apply -n argocd -f argocd/app-of-apps.yaml
 ```
 
-ArgoCD then reconciles the AppProject, the ApplicationSet (`avtools-qa` tracking
-`master`, `avtools-prod` tracking `prod`), and kube-prometheus-stack. To render
-locally without ArgoCD:
+Admin password + UI: `kubectl -n argocd get secret argocd-initial-admin-secret
+-o jsonpath='{.data.password}' | base64 -d`, then
+`kubectl port-forward svc/argocd-server -n argocd 8080:443`.
+
+## 4. Secrets
+
+Two secrets per environment namespace; neither is managed by the chart.
+
+**Image pull secret** — so the cluster can pull the private Harbor image (else
+pods sit in `ImagePullBackOff`):
 
 ```bash
-helm template avtools chart -n avtools-qa \
-  -f chart/values.yaml -f chart/values-qa.yaml | kubectl apply -n avtools-qa -f -
+kubectl -n avtools-qa create secret docker-registry harbor-avtools \
+  --docker-server=registry.cern.ch \
+  --docker-username='robot-avtools+avtools-ci' \
+  --docker-password='<harbor-robot-token>'
 ```
 
-## 4. Secrets (tbag to K8s Secret)
-
-The chart never contains secret values. Bridge them from tbag on an `itdcim/avtools`
-host (the monolith during the overlap):
+**App secrets** — `DATABASE_URL`, `MONIT_PASSWORD`, `LANDB_CLIENT_SECRET`, etc.,
+bridged from tbag on an `itdcim/avtools` host (aiadm works if you're a hostgroup
+admin; write the kubeconfig to `/tmp` if AFS home is full):
 
 ```bash
 AVTOOLS_ENVIRONMENT=qa ./scripts/sync-secret.sh   # upserts secret/avtools-secrets
 ```
+
+Without the app secret the pods fail with `CreateContainerConfigError`.
 
 `NET_RAW` for ICMP is already set on the `snmp-timeseries` CronJob (you are
 cluster-admin on Magnum), so ping works out of the box.
@@ -127,6 +162,17 @@ kubectl -n avtools-qa logs -l app.kubernetes.io/component=snmp-timeseries --tail
     `avtools-run-eam` or `avtools-run-landb` manually yields exactly **one**
     pod — that's by design, not a misconfiguration. See
     [Architecture → Not everything shards](../architecture.md#not-everything-shards).
+
+!!! warning "Empty fleet? (`devices_fleet=0` / `skipped_no_targets`)"
+    If `snmp-timeseries` reports `devices_fleet=0` even though the environment has
+    devices, check `run-landb`'s logs. `cern_oauthlib` writes its OAuth token
+    cache under `~/.cache`, and with `readOnlyRootFilesystem: true` that write
+    fails (`OSError: [Errno 30] Read-only file system: '/home/avtools/.cache'`) —
+    so **LanDB auth fails, no IPs are cached, and the SNMP fleet comes back
+    empty** (a failed sync even *deletes* the previously-cached IPs). The chart
+    mounts a writable `cachedir` emptyDir at `/home/avtools/.cache` to fix this;
+    confirm it's present on the CronJob pod spec. (`run-eam` auths differently, so
+    it keeps working and masks the problem.)
 
 ## Lifecycle
 

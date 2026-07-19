@@ -34,11 +34,18 @@ self-managed Magnum cluster you are cluster-admin, so `NET_RAW` is a one-line
 kinit <you>@CERN.CH                              # cluster creation needs Kerberos, not an app credential
 openstack coe cluster template list              # templates get retired -- confirm the name below still exists
 openstack coe cluster create avtools-k8s --keypair <mykey> \
-  --cluster-template kubernetes-1.33.3-1 --node-count 3
+  --cluster-template kubernetes-1.35.3-2 --node-count 3 \
+  --master-flavor m2.large    # NOT the default m2.medium — see the warning below
 # then follow Deployment -> Kubernetes on OpenStack (Magnum)
 ```
 
+!!! warning "The master MUST be `m2.large`"
+    On the default `m2.medium` master (3.75 GB), CERN's addon install starves the
+    control plane and cluster creation fails (`CREATE_FAILED`). `m2.large` is
+    required. In practice, prefer `terraform`/`./scripts/start-here.sh` from
+    `av-tools-infra`, which sets this (and the quota math) for you.
+
 !!! tip "Template name above is illustrative, not a pin"
-    Cluster templates rotate; `kubernetes-1.33.3-1` may already be gone by the
+    Cluster templates rotate; `kubernetes-1.35.3-2` may already be gone by the
     time you read this. Always take the name from
     `openstack coe cluster template list`, not from a doc or an old `tfvars`.
