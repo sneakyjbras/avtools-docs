@@ -50,6 +50,7 @@ nav:
   - The Monolith & Puppet: monolith-puppet.md
   - Release Channels & Compatibility: release-channels.md
   - Deployment: deployment/magnum.md
+  - Rebuilding the Cluster: deployment/rebuild.md
   - Secrets & Configuration: secrets.md
   - Logging & Monitoring: logging-monitoring.md
   - Operations Runbook: operations.md
