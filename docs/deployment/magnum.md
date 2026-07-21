@@ -4,6 +4,11 @@ AV Tools runs on a self-managed **Magnum** cluster (so it can add `NET_RAW` for 
 ping — see [Architecture → Why Magnum](../architecture.md#why-magnum)), deployed by
 **GitOps (Terraform + ArgoCD + Helm)**.
 
+!!! tip "Rebuilding from scratch?"
+    The cluster is disposable — to destroy and recreate it (flavor change, recovery),
+    see [Rebuilding the Cluster](rebuild.md) and the one-command `scripts/bootstrap.sh`.
+    This page covers the underlying manual steps.
+
 ## Four repositories
 
 | Repo | Owns | Produces |
